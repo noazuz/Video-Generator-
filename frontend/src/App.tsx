@@ -102,7 +102,7 @@ function isDraft(item: unknown): item is Draft {
 function readDraft(): Draft {
   try {
     const item = JSON.parse(localStorage.getItem('kadr-draft') || 'null') as Partial<Draft> | null
-    if (isDraft(item))
+    if (item && typeof item === 'object')
       return {
         ...defaultDraft,
         ...item,
@@ -177,6 +177,7 @@ export default function App() {
   const objectUrls = useRef<string[]>([])
   const importRef = useRef<HTMLInputElement>(null)
   const allMedia = [...mediaLibrary, ...uploads]
+
   useEffect(() => {
     if (settings.autoSave) {
       try {
@@ -186,6 +187,7 @@ export default function App() {
       }
     }
   }, [draft, settings.autoSave])
+
   useEffect(() => {
     const handleHash = () => {
       const hash = location.hash.slice(1) as View
@@ -197,6 +199,7 @@ export default function App() {
     window.addEventListener('hashchange', handleHash)
     return () => window.removeEventListener('hashchange', handleHash)
   }, [])
+
   useEffect(() => {
     const mediaQuery = window.matchMedia('(max-width: 800px)')
     const resize = () => {
@@ -213,10 +216,12 @@ export default function App() {
       document.removeEventListener('keydown', escape)
     }
   }, [])
+
   useEffect(() => {
     document.title = `${viewDetails[view]} - Кадр`
     setProjectMenu(null)
   }, [view])
+
   useEffect(() => {
     const close = (event: MouseEvent) => {
       if (!(event.target as Element).closest('.project-menu-wrap')) setProjectMenu(null)
@@ -224,6 +229,7 @@ export default function App() {
     document.addEventListener('click', close)
     return () => document.removeEventListener('click', close)
   }, [])
+
   useEffect(
     () => () => {
       objectUrls.current.forEach((url) => URL.revokeObjectURL(url))
@@ -232,11 +238,13 @@ export default function App() {
     },
     []
   )
+
   const notify = (message: string) => {
     window.clearTimeout(toastTimer.current)
     setToast(message)
     toastTimer.current = window.setTimeout(() => setToast(''), 5000)
   }
+
   const navigate = (target: View) => {
     setView(target)
     location.hash = target
@@ -247,18 +255,20 @@ export default function App() {
     })
     if ('speechSynthesis' in window) speechSynthesis.cancel()
   }
+
   const updateDraft = (patch: Partial<Draft>) =>
     setDraft((current) => ({
       ...current,
       ...patch,
     }))
+
   const saveProject = (status: 'draft' | 'ready' = 'draft', silent = false) => {
     if (draft.topic.trim().length < 5) {
       if (!silent) notify('Додай тему відео перед збереженням.')
       return
     }
     const now = new Date().toISOString()
-    const id = draft.id || crypto.randomUUID()
+    const id = draft.id && projects.some(p => p.id === draft.id) ? draft.id : crypto.randomUUID()
     
     setProjects((current) => {
       const existing = current.find((project) => project.id === id)
@@ -277,16 +287,19 @@ export default function App() {
     if (!silent)
       notify(status === 'ready' ? 'Проєкт збережено.' : 'Чернетку збережено в цьому браузері.')
   }
+
   const startNew = () => {
     setModalInput('')
     setModal({
       type: 'new',
     })
   }
+
   const createNew = () => {
     if (draft.topic.trim().length >= 5) saveProject('draft', true)
     setDraft({
       ...defaultDraft,
+      id: crypto.randomUUID(),
       topic: modalInput.trim(),
       duration: settings.defaultDuration,
       format: settings.defaultFormat,
@@ -296,6 +309,7 @@ export default function App() {
     navigate('studio')
     notify('Проєкт створено.')
   }
+
   const openProject = (project: Project) => {
     const availableIds = project.mediaIds.filter((id) => allMedia.some((item) => item.id === id))
     if (availableIds.length !== project.mediaIds.length)
@@ -307,6 +321,7 @@ export default function App() {
     setStep(0)
     navigate('studio')
   }
+
   const exportProject = (project: Draft | Project) => {
     const {
       id,
@@ -368,6 +383,7 @@ export default function App() {
     )
     notify('Налаштування проєкту завантажено у JSON.')
   }
+
   const importProjects = async (file: File | undefined) => {
     if (!file) return
     if (file.size > 10 * 1024 * 1024) {
@@ -405,6 +421,7 @@ export default function App() {
       notify('Не вдалося прочитати файл.')
     }
   }
+
   const handleGenerateVideo = async () => {
     notify('Завдання на генерацію відео відправлено на сервер...')
 
@@ -435,7 +452,7 @@ export default function App() {
       const data = await response.json()
       
       const now = new Date().toISOString()
-      const newId = draft.id || crypto.randomUUID()
+      const newId = crypto.randomUUID()
       const actualDuration = data.duration || draft.duration
       
       const finishedProject: Project = {
@@ -455,7 +472,7 @@ export default function App() {
         duration: actualDuration
       })
 
-      setProjects((current) => [finishedProject, ...current.filter(p => p.id !== newId)])
+      setProjects((current) => [finishedProject, ...current])
       
       notify(`Відео успішно згенеровано! ID проєкту: ${data.project_id}`)
       setModal({ type: 'result' })
@@ -465,6 +482,7 @@ export default function App() {
       notify('Не вдалося згенерувати відео. Перевір бекенд.')
     }
   }
+
   const projectAction = (
     project: Project,
     action: 'rename' | 'duplicate' | 'export' | 'delete'
@@ -497,6 +515,7 @@ export default function App() {
       notify('Копію додано до твоїх проєктів.')
     }
   }
+
   const uploadFiles = (files: FileList | null) => {
     if (!files?.length) return
     const allowed = [
@@ -546,6 +565,7 @@ export default function App() {
       `${added.length ? `Додано матеріалів: ${added.length}.` : ''}${rejected ? ' Деякі файли не підтримуються, порожні або більші за 50 МБ.' : ''}`.trim()
     )
   }
+
   const removeUpload = (id: string) => {
     const item = uploads.find((entry) => entry.id === id)
     if (item?.url) {
@@ -558,6 +578,7 @@ export default function App() {
     })
     notify('Матеріал видалено з поточного сеансу.')
   }
+
   const sortedProjects = [...projects]
     .filter(
       (project) =>
@@ -569,6 +590,7 @@ export default function App() {
         ? (a.title || '').localeCompare(b.title || '', 'uk')
         : new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime()
     )
+
   const projectCards = (items: Project[]) =>
     items.map((project) => (
       <ProjectCard
@@ -581,6 +603,7 @@ export default function App() {
         onAction={(action) => projectAction(project, action)}
       />
     ))
+
   return (
     <div className="app-shell">
       {sidebarOpen && (
@@ -658,11 +681,11 @@ export default function App() {
               onUpload={uploadFiles}
               onSave={() => saveProject()}
               onGenerate={handleGenerateVideo}
-              onExpand={() =>
-                setModal({
-                  type: 'preview',
-                })
-              }
+              onExpand={() => {
+                if (draft.audioUrl) {
+                  setModal({ type: 'preview' })
+                }
+              }}
               onToast={notify}
             />
           )}
@@ -839,7 +862,7 @@ export default function App() {
           </form>
         </Dialog>
       )}
-      {modal?.type === 'preview' && (
+      {modal?.type === 'preview' && draft.audioUrl && (
         <Dialog title="Попередній перегляд" onClose={() => setModal(null)} wide>
           <Preview draft={draft} media={allMedia} expanded />
         </Dialog>

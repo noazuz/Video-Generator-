@@ -617,15 +617,25 @@ export default function Studio({
         <aside className="preview-panel">
           <div className="preview-heading">
             <h2>Попередній перегляд</h2>
-            <Button
-              className="icon-button"
-              aria-label="Розгорнути попередній перегляд"
-              onClick={onExpand}
-            >
-              <Maximize2 size={17} />
-            </Button>
+            {draft.audioUrl && (
+              <Button
+                className="icon-button"
+                aria-label="Розгорнути попередній перегляд"
+                onClick={onExpand}
+              >
+                <Maximize2 size={17} />
+              </Button>
+            )}
           </div>
-          <Preview draft={draft} media={media} />
+          {draft.audioUrl ? (
+            <Preview draft={draft} media={media} />
+          ) : (
+            <div className="preview-empty-state" style={{ padding: '80px 20px', textAlign: 'center', color: '#888' }}>
+              <Film size={40} style={{ margin: '0 auto 12px', opacity: 0.4 }} />
+              <p style={{ fontWeight: 500, marginBottom: '4px' }}>Попередній перегляд порожній</p>
+              <p style={{ fontSize: '13px', opacity: 0.7 }}>Згенеруй відео або відкрий готовий проєкт із розділу «Мої проєкти»</p>
+            </div>
+          )}
         </aside>
       </div>
     </>
