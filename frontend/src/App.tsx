@@ -27,7 +27,7 @@ import {
   ProjectCard,
   Select,
 } from './ui-kit'
-import { defaultDraft, mediaLibrary, sampleProjects } from './data'
+import { defaultDraft, mediaLibrary } from './data'
 import { MediaPage, SettingsPage } from './Pages'
 import { createSubtitles, downloadFile, useStoredState } from './storage'
 import Studio from './Studio'
@@ -98,17 +98,7 @@ function isDraft(item: unknown): item is Draft {
     typeof value.musicVolume === 'number'
   )
 }
-function isProject(item: unknown): item is Project {
-  if (!isDraft(item)) return false
-  const value = item as Project
-  return (
-    typeof value.id === 'string' &&
-    typeof value.title === 'string' &&
-    ['draft', 'ready'].includes(value.status) &&
-    Number.isFinite(Date.parse(value.createdAt)) &&
-    Number.isFinite(Date.parse(value.updatedAt))
-  )
-}
+
 function readDraft(): Draft {
   try {
     const item = JSON.parse(localStorage.getItem('kadr-draft') || 'null') as Partial<Draft> | null
@@ -126,6 +116,19 @@ function readDraft(): Draft {
     ...defaultDraft,
   }
 }
+
+function readStoredProjects(): Project[] {
+  try {
+    const item = JSON.parse(localStorage.getItem('kadr-projects') || '[]')
+    if (Array.isArray(item)) {
+      return item as Project[]
+    }
+  } catch {
+    return []
+  }
+  return []
+}
+
 export default function App() {
   const [view, setView] = useState<View>(() => {
     const hash = location.hash.slice(1) as View
@@ -148,11 +151,16 @@ export default function App() {
       )
     }
   )
-  const [projects, setProjects] = useStoredState<Project[]>(
-    'kadr-projects',
-    sampleProjects,
-    (item) => Array.isArray(item) && item.every(isProject)
-  )
+  const [projects, setProjects] = useState<Project[]>(readStoredProjects)
+  
+  useEffect(() => {
+    try {
+      localStorage.setItem('kadr-projects', JSON.stringify(projects))
+    } catch (e) {
+      console.error(e)
+    }
+  }, [projects])
+
   const [draft, setDraft] = useState<Draft>(readDraft)
   const [step, setStep] = useState(0)
   const [uploads, setUploads] = useState<MediaItem[]>([])
@@ -251,31 +259,21 @@ export default function App() {
     }
     const now = new Date().toISOString()
     const id = draft.id || crypto.randomUUID()
-    const existing = projects.find((project) => project.id === id)
-    const project: Project = {
-      ...draft,
-      id,
-      title: existing?.title || draft.topic.trim().slice(0, 70),
-      status,
-      createdAt: existing?.createdAt || now,
-      updatedAt: now,
-    }
-    setProjects((current) => [project, ...current.filter((item) => item.id !== id)])
-    updateDraft({
-      id,
+    
+    setProjects((current) => {
+      const existing = current.find((project) => project.id === id)
+      const project: Project = {
+        ...draft,
+        id,
+        title: existing?.title || draft.topic.trim().slice(0, 70),
+        status,
+        createdAt: existing?.createdAt || now,
+        updatedAt: now,
+      }
+      return [project, ...current.filter((item) => item.id !== id)]
     })
-    try {
-      localStorage.setItem(
-        'kadr-draft',
-        JSON.stringify({
-          ...draft,
-          id,
-        })
-      )
-    } catch {
-      notify('У браузері недостатньо місця для збереження.')
-      return
-    }
+
+    updateDraft({ id })
     if (!silent)
       notify(status === 'ready' ? 'Проєкт збережено.' : 'Чернетку збережено в цьому браузері.')
   }
@@ -380,56 +378,31 @@ export default function App() {
       const data = JSON.parse(await file.text())
       const now = new Date().toISOString()
       let imported: Project[] = []
-      if (
-        data &&
-        Array.isArray(data.projects) &&
-        data.projects.length <= 100 &&
-        data.projects.every(isProject)
-      ) {
+      if (data && Array.isArray(data.projects)) {
         imported = data.projects.map((project: Project) => ({
           ...project,
           id: crypto.randomUUID(),
-          title: project.title.slice(0, 70),
+          title: (project.title || 'Імпортований проєкт').slice(0, 70),
           updatedAt: now,
         }))
-      } else if (
-        data?.version === 1 &&
-        typeof data.topic === 'string' &&
-        typeof data.script === 'string' &&
-        Array.isArray(data.media) &&
-        Array.isArray(data.search_terms)
-      ) {
-        const candidate = {
-          ...defaultDraft,
-          topic: data.topic.slice(0, 500),
-          script: data.script.slice(0, 3000),
-          format: data.format,
-          duration: data.duration,
-          tone: data.tone,
-          tags: data.search_terms.slice(0, 10),
-          mediaIds: data.media.slice(0, 100).map((item: { id: string }) => item.id),
-          voice: data.voice?.name,
-          rate: data.voice?.rate,
-          music: data.music?.name,
-          musicVolume: data.music?.volume,
-          subtitles: data.subtitles,
-        }
-        if (!isDraft(candidate)) throw new Error('Invalid project')
+      } else if (data?.version === 1 && typeof data.topic === 'string') {
         imported = [
           {
-            ...candidate,
+            ...defaultDraft,
+            ...data,
             id: crypto.randomUUID(),
-            title: (typeof data.title === 'string' ? data.title : candidate.topic).slice(0, 70),
+            title: (data.title || data.topic).slice(0, 70),
             status: 'draft',
             createdAt: now,
             updatedAt: now,
           },
         ]
       } else throw new Error('Unsupported file')
+      
       setProjects((current) => [...imported, ...current])
-      notify(`Імпортовано проєктів: ${imported.length}. Власні медіафайли потрібно додати окремо.`)
+      notify(`Імпортовано проєктів: ${imported.length}.`)
     } catch {
-      notify('Не вдалося прочитати файл. Обери JSON-проєкт або резервну копію Кадру.')
+      notify('Не вдалося прочитати файл.')
     }
   }
   const handleGenerateVideo = async () => {
@@ -462,7 +435,7 @@ export default function App() {
       const data = await response.json()
       
       const now = new Date().toISOString()
-      const newId = crypto.randomUUID()
+      const newId = draft.id || crypto.randomUUID()
       const actualDuration = data.duration || draft.duration
       
       const finishedProject: Project = {
@@ -482,14 +455,7 @@ export default function App() {
         duration: actualDuration
       })
 
-      setProjects((current) => [finishedProject, ...current])
-
-      try {
-        const updatedProjects = [finishedProject, ...projects]
-        localStorage.setItem('kadr-projects', JSON.stringify(updatedProjects))
-      } catch (e) {
-        console.error(e)
-      }
+      setProjects((current) => [finishedProject, ...current.filter(p => p.id !== newId)])
       
       notify(`Відео успішно згенеровано! ID проєкту: ${data.project_id}`)
       setModal({ type: 'result' })
@@ -519,17 +485,15 @@ export default function App() {
     if (action === 'export') exportProject(project)
     if (action === 'duplicate') {
       const now = new Date().toISOString()
-      setProjects((current) => [
-        {
-          ...project,
-          id: crypto.randomUUID(),
-          title: `${project.title} - копія`,
-          status: 'draft',
-          createdAt: now,
-          updatedAt: now,
-        },
-        ...current,
-      ])
+      const duplicatedProject: Project = {
+        ...project,
+        id: crypto.randomUUID(),
+        title: `${project.title} - копія`,
+        status: 'draft',
+        createdAt: now,
+        updatedAt: now,
+      }
+      setProjects((current) => [duplicatedProject, ...current])
       notify('Копію додано до твоїх проєктів.')
     }
   }
@@ -598,12 +562,12 @@ export default function App() {
     .filter(
       (project) =>
         (projectFilter === 'all' || project.status === projectFilter) &&
-        `${project.title} ${project.topic}`.toLowerCase().includes(projectQuery.toLowerCase())
+        `${project.title || ''} ${project.topic || ''}`.toLowerCase().includes(projectQuery.toLowerCase())
     )
     .sort((a, b) =>
       projectSort === 'name'
-        ? a.title.localeCompare(b.title, 'uk')
-        : new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+        ? (a.title || '').localeCompare(b.title || '', 'uk')
+        : new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime()
     )
   const projectCards = (items: Project[]) =>
     items.map((project) => (
@@ -976,6 +940,7 @@ export default function App() {
                 objectUrls.current = []
                 setUploads([])
                 localStorage.removeItem('kadr-draft')
+                localStorage.removeItem('kadr-projects')
                 setModal(null)
                 notify('Дані очищено.')
               }}
