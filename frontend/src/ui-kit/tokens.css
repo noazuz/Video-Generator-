@@ -1,0 +1,36 @@
+:root,
+.k-ui {
+  --k-color-canvas: #f7f8f5;
+  --k-color-surface: #fff;
+  --k-color-sidebar: #242c27;
+  --k-color-text: #303833;
+  --k-color-muted: #596655;
+  --k-color-brand: #e57643;
+  --k-color-action: #a8431c;
+  --k-color-action-hover: #883514;
+  --k-color-soft: #fff1e8;
+  --k-color-success: #3f6956;
+  --k-color-success-soft: #edf4ee;
+  --k-color-warning: #76551c;
+  --k-color-warning-soft: #fcf4df;
+  --k-color-danger: #b43c35;
+  --k-color-danger-soft: #fff0ee;
+  --k-color-border: #ccd4c5;
+  --k-color-focus: #416848;
+  --k-font-family: 'Manrope', 'Segoe UI', sans-serif;
+  --k-font-body: 14px;
+  --k-font-caption: 12px;
+  --k-space-1: 4px;
+  --k-space-2: 8px;
+  --k-space-3: 12px;
+  --k-space-4: 16px;
+  --k-space-6: 24px;
+  --k-space-8: 32px;
+  --k-space-12: 48px;
+  --k-radius-sm: 4px;
+  --k-radius-md: 6px;
+  --k-radius-lg: 10px;
+  --k-control-height: 44px;
+  --k-shadow-dialog: 0 24px 80px #14271f26;
+  --k-motion-fast: 160ms;
+}
